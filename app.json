@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "real_estate_app",
-    "slug": "real_estate_app",
+    "name": "E-sus",
+    "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/E-suslogo.png",
     "scheme": "realestateapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,6 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
+        "bundler": "metro",
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
@@ -22,6 +23,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
