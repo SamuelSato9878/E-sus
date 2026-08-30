@@ -1,17 +1,31 @@
 [project]
-name = "backend"
+name = "E-sus"
 version = "0.1.0"
-description = "Add your description here"
+description = "API do sistema de agendamento e-SUS"
 readme = "README.md"
 authors = [
     { name = "Samuel Santos Barbosa", email = "Samubits123@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "alembic>=1.19.1",
+    "fastapi[standard]>=0.141.1",
+    "passlib[bcrypt]>=1.7.4",
+    "pydantic>=2.13.5",
+    "python-dotenv>=1.2.3",
+    "python-jose[cryptography]>=3.5.0",
+    "sqlalchemy>=2.0.52",
+    "uvicorn>=0.52.4",
+]
 
 [project.scripts]
+dev = "e_sus.main:main"
+test = "tests.test:python_tests"
 backend = "backend:main"
 
 [build-system]
-requires = ["uv_build>=0.12.5,<0.13.0"]
-build-backend = "uv_build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/e_sus", "tests"]
