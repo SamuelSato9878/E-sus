@@ -1,31 +1,50 @@
-from typing import List
-from typing import Optional
-from sqlalchemy import ForeignKey
+from enum import Enum
+
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from sqlalchemy.orm import relationship
+
 
 from e_sus.core.database import Base
 
 
-class User(Base):
-    __tablename__ = "user_account"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(30))
-    phone: Mapped[str] = mapped_column(String(30))
-    fullname: Mapped[Optional[str]]
-    addresses: Mapped[List["Address"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
-    def __repr__(self) -> str:
-        return f"User(id={self.id!r}, phone{self.phone!r}, name={self.name!r}, fullname={self.fullname!r})"
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column
 
-class Address(Base):
-    __tablename__ = "address"
-    id: Mapped[int] = mapped_column(primary_key=True)
-    email_address: Mapped[str]
-    user_id: Mapped[int] = mapped_column(ForeignKey("user_account.id"))
-    user: Mapped["User"] = relationship(back_populates="addresses")
-    def __repr__(self) -> str:
-        return f"Address(id={self.id!r}, email_address={self.email_address!r})"
+
+class UserRole(str, Enum):
+    PATIENT = "Paciente"
+    PROFESSIONAL = "Profissional de Saúde"
+    ADMIN = "Admin"
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+        index=True
+    )
+    
+    supabase_user_id: Mapped[str] = mapped_column(
+        String(36),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    email: Mapped[str] = mapped_column(
+        String(150),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    role: Mapped[UserRole] = mapped_column(
+        default=UserRole.PATIENT,
+        nullable=False
+    )

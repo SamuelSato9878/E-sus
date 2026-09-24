@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = ""
 
     ALLOWED_ORIGINS: str = ""
+    
+    SUPABASE_URL: str = ""
+    
+    SUPABASE_KEY: str = ""
 
     @field_validator("ALLOWED_ORIGINS")
     def parse_allowed_origins(cls, v:str) -> List[str]:
@@ -20,6 +24,7 @@ class Settings(BaseSettings):
         env_ignore_empty = True
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra="ignore"
 
 
 settings = Settings()
