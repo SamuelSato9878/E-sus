@@ -3,12 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 type Props = {
-  /**
-   * Nome do usuário logado. Por enquanto não há integração com o backend/
-   * autenticação real, então isso deve vir de onde a sessão do usuário for
-   * guardada mais pra frente (contexto de auth, etc). Enquanto isso, cai no
-   * placeholder "[nome]" igual ao mockup.
-   */
+  /** Nome do usuário logado (vem da sessão). Sem ele, cai no placeholder "[nome]". */
   nome?: string;
   onPressPerfil?: () => void;
 };

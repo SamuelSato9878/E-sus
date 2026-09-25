@@ -1,15 +1,22 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useBottomTabBarHeight } from 'expo-router/tabs';
 import { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HomeHeader from '../../components/HomeHeader';
 import SearchBar from '../../components/SearchBar';
 import SpecialtyButton from '../../components/SpecialtyButton';
+import { useSessao } from '../../context/SessaoContext';
 import { SPECIALTIES, type Specialty } from '../../data/specialties';
+import { nomeDeExibicao } from '../../utils/usuario';
 
 export default function Home() {
   const insets = useSafeAreaInsets();
+  // A tab bar fica por cima do conteúdo; o fim da lista precisa passar dela.
+  const alturaTabBar = useBottomTabBarHeight();
+  const { usuario } = useSessao();
+  const nome = nomeDeExibicao(usuario);
   const [busca, setBusca] = useState('');
 
   const especialidadesFiltradas = useMemo(() => {
@@ -36,11 +43,11 @@ export default function Home() {
         columnWrapperStyle={styles.row}
         contentContainerStyle={[
           styles.listContent,
-          { paddingTop: insets.top + 16 },
+          { paddingTop: insets.top + 16, paddingBottom: alturaTabBar + 24 },
         ]}
         ListHeaderComponent={
           <View style={styles.headerArea}>
-            <HomeHeader />
+            <HomeHeader nome={nome} onPressPerfil={() => router.navigate('/perfil')} />
             <View style={styles.searchSpacer} />
             <SearchBar value={busca} onChangeText={setBusca} />
             <View style={styles.gridSpacer} />
@@ -58,7 +65,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 24,
   },
   headerArea: {
     marginBottom: 4,

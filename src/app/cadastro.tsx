@@ -16,7 +16,7 @@ import AuthInput from '../components/AuthInput';
 import ErrorText from '../components/ErrorText';
 import PrimaryButton from '../components/PrimaryButton';
 import SocialButton from '../components/SocialButton';
-import { createUser } from '../db/Database';
+import { cadastrar } from '../services/auth';
 
 const SENHA_MIN = 8;
 
@@ -46,8 +46,7 @@ export default function Cadastro() {
     setErro(null);
     setLoading(true);
 
-    // Quando o backend chegar, troque isto pela chamada real de cadastro.
-    const resultado = await createUser(email, senha);
+    const resultado = await cadastrar(email, senha);
 
     setLoading(false);
 

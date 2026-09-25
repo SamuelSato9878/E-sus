@@ -14,9 +14,10 @@ import AuthInput from '../components/AuthInput';
 import ErrorText from '../components/ErrorText';
 import PrimaryButton from '../components/PrimaryButton';
 import SocialButton from '../components/SocialButton';
-import { validateLogin } from '../db/Database';
+import { useSessao } from '../context/SessaoContext';
 
 export default function Login() {
+  const { entrar } = useSessao();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,8 +32,8 @@ export default function Login() {
     setErro(null);
     setLoading(true);
 
-    // Quando o backend chegar, troque isto pela chamada real de login.
-    const resultado = await validateLogin(email, senha);
+    // Quando o backend chegar, a chamada real de login fica dentro de `entrar`.
+    const resultado = await entrar(email, senha);
 
     setLoading(false);
 
@@ -41,7 +42,7 @@ export default function Login() {
       return;
     }
 
-    router.replace('/Sucesso');
+    router.replace('/(tabs)');
   }
 
   return (

@@ -19,7 +19,12 @@ export type User = {
   senha: string;
 };
 
+/** Dados do usuário que podem circular pelo app (sem a senha). */
+export type Usuario = Omit<User, 'senha'>;
+
 export type AuthResult = { success: true } | { success: false; error: string };
+
+export type LoginResult = { success: true; usuario: Usuario } | { success: false; error: string };
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -88,7 +93,7 @@ export async function createUser(email: string, senha: string): Promise<AuthResu
   }
 }
 
-export async function validateLogin(email: string, senha: string): Promise<AuthResult> {
+export async function validateLogin(email: string, senha: string): Promise<LoginResult> {
   const db = await getDb();
   const emailNormalizado = email.trim().toLowerCase();
 
@@ -102,5 +107,5 @@ export async function validateLogin(email: string, senha: string): Promise<AuthR
   if (user.senha !== senha) {
     return { success: false, error: 'Senha incorreta.' };
   }
-  return { success: true };
+  return { success: true, usuario: { id: user.id, email: user.email } };
 }

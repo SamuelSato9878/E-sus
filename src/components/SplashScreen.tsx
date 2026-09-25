@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect } from 'react';
+import { useEffect, useEffectEvent } from 'react';
 import { Dimensions, Image, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -52,6 +52,8 @@ export default function SplashScreen({ onReady }: Props) {
   const circleOpacity = useSharedValue(0);
   const logoOpacity = useSharedValue(0);
   const logoScale = useSharedValue(0.85);
+  // Lê sempre o `onReady` mais recente sem reiniciar a animação quando ele muda.
+  const avisarPronto = useEffectEvent(() => onReady?.());
 
   useEffect(() => {
     // Círculo translúcido "respira" suavemente ao surgir
@@ -72,11 +74,9 @@ export default function SplashScreen({ onReady }: Props) {
       withTiming(1, { duration: 500, easing: Easing.out(Easing.back(1.2)) })
     );
 
-    if (onReady) {
-      const timeout = setTimeout(onReady, 2200);
-      return () => clearTimeout(timeout);
-    }
-  }, []);
+    const timeout = setTimeout(() => avisarPronto(), 2200);
+    return () => clearTimeout(timeout);
+  }, [circleOpacity, circleScale, logoOpacity, logoScale]);
 
   const circleStyle = useAnimatedStyle(() => ({
     opacity: circleOpacity.value,
