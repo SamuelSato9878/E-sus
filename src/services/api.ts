@@ -1,11 +1,13 @@
-import { create, isAxiosError } from 'axios';
-import { API_URL } from '../config/env';
+import { create, isAxiosError,  } from 'axios';
 import { tokenAtual } from './sessaoStorage';
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL
 
 /**
  * Cliente HTTP único do app. Todas as chamadas ao backend devem passar
  * por aqui, para herdar a URL base, o timeout, o token e o tratamento de erro.
  */
+
 export const api = create({
   baseURL: API_URL,
   timeout: 15000,
@@ -13,12 +15,18 @@ export const api = create({
 });
 
 // Envia o token da sessão (se houver) em todas as requisições.
-api.interceptors.request.use((config) => {
-  const token = tokenAtual();
+api.interceptors.request.use(async (config) => {
+  const token = await tokenAtual();
+
+  console.log('TOKEN PARA REQUISIÇÃO:', token);
+
   if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  console.log('AUTH HEADER:', config.headers.Authorization)
+
   return config;
 });
-
+  
 let aoSessaoExpirar: (() => void) | null = null;
 
 /** Registra o que fazer quando a API recusar o token (ex.: deslogar). */

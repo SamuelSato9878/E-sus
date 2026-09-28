@@ -16,22 +16,25 @@ import AuthInput from '../components/AuthInput';
 import ErrorText from '../components/ErrorText';
 import PrimaryButton from '../components/PrimaryButton';
 import SocialButton from '../components/SocialButton';
+
 import { cadastrar } from '../services/auth';
 
 const SENHA_MIN = 8;
 
 export default function Cadastro() {
+  const [user_name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
+  const [password, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
   function validar(): string | null {
+    if (!user_name) return 'informe um nome';
     if (!email.trim()) return 'Informe um email.';
-    if (senha.length < SENHA_MIN) return `A senha precisa ter pelo menos ${SENHA_MIN} caracteres.`;
-    if (senha !== confirmarSenha) return 'As senhas não coincidem.';
+    if (password.length < SENHA_MIN) return `A senha precisa ter pelo menos ${SENHA_MIN} caracteres.`;
+    if (password !== confirmarSenha) return 'As senhas não coincidem.';
     if (!aceitouTermos) return 'Você precisa aceitar os Termos e a Política de Privacidade.';
     return null;
   }
@@ -46,7 +49,7 @@ export default function Cadastro() {
     setErro(null);
     setLoading(true);
 
-    const resultado = await cadastrar(email, senha);
+    const resultado = await cadastrar(user_name, email, password);
 
     setLoading(false);
 
@@ -83,6 +86,12 @@ export default function Cadastro() {
 
           <View style={styles.form}>
             <AuthInput
+              label="Nome"
+              value={user_name}
+              onChangeText={setName}
+              keyboardType="email-address"
+            />
+            <AuthInput
               label="Email"
               value={email}
               onChangeText={setEmail}
@@ -90,7 +99,7 @@ export default function Cadastro() {
             />
             <AuthInput
               label="Senha"
-              value={senha}
+              value={password}
               onChangeText={setSenha}
               secureTextEntry
             />

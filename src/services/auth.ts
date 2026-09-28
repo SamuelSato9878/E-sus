@@ -1,6 +1,66 @@
-import { API_CONFIGURADA } from '../config/env';
-import { createUser, validateLogin, type AuthResult, type Usuario } from '../db/Database';
+/* import { API_CONFIGURADA } from '../config/env';
+import { createUser, validateLogin, type AuthResult, type Usuario } from '../db/Database'; */
 import { api, mensagemDeErro } from './api';
+
+function normalizarEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+export async function cadastrar(user_name: string, email: string, password: string) {
+  try {
+    const response = await api.post('/auth/signup', {
+      user_name,
+      email: normalizarEmail(email),
+      password,
+    });
+    console.log('CADASTRO:', response.data);
+
+    return{success: true, data: response.data};
+  } catch (error: any){
+    console.log('ERRO CADASTRO', error.response?.data || error.message);
+    return{ success: false, error: mensagemDeErro(error, 'Não foi possível cadastrar. Tente novamente.')}
+  }
+}
+
+export async function login(email: string, password: string){
+  try{
+    const response = await api.post('/auth/login',{
+      email: normalizarEmail(email),
+      password,
+    });
+
+    console.log('LOGIN:', response.data);
+
+    return{ success: true, data: response.data}
+    
+  } catch( error: any ){
+
+    console.log('ERRO LOGIN:');
+    console.log('STATUS:', error.response?.status);
+    console.log('DATA:', error.response?.data);
+    console.log('MESSAGE:', error.message);
+
+    return {
+      success: false, error: mensagemDeErro(error, 'e-mail ou senha inválidos')
+    }
+  }
+}
+
+export async function buscarUsuarioAtual() {
+  try {
+    const response = await api.get('/auth/me');
+
+    return response.data;
+  } catch (error) {
+    console.error(
+      'Erro ao buscar usuário atual:',
+      error
+    );
+
+    return null;
+  }
+}
+
 
 /**
  * Autenticação. Com EXPO_PUBLIC_API_URL preenchida, fala com o backend via
@@ -11,7 +71,7 @@ import { api, mensagemDeErro } from './api';
  *   POST /auth/cadastro  { email, senha }  ->  2xx
  */
 
-export type LoginResult =
+/* export type LoginResult =
   | { success: true; token: string; usuario: Usuario }
   | { success: false; error: string };
 
@@ -48,3 +108,4 @@ export async function cadastrar(email: string, senha: string): Promise<AuthResul
     return { success: false, error: mensagemDeErro(e, 'Não foi possível cadastrar. Tente novamente.') };
   }
 }
+ */

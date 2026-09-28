@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Href, Link, router } from 'expo-router';
 import { useState } from 'react';
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -14,17 +15,19 @@ import AuthInput from '../components/AuthInput';
 import ErrorText from '../components/ErrorText';
 import PrimaryButton from '../components/PrimaryButton';
 import SocialButton from '../components/SocialButton';
+
 import { useSessao } from '../context/SessaoContext';
 
 export default function Login() {
-  const { entrar } = useSessao();
   const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  const { entrar } = useSessao()
+  
   async function handleLogin() {
-    if (!email.trim() || !senha) {
+    if (!email.trim() || !password) {
       setErro('Preencha email e senha.');
       return;
     }
@@ -32,13 +35,14 @@ export default function Login() {
     setErro(null);
     setLoading(true);
 
-    // Quando o backend chegar, a chamada real de login fica dentro de `entrar`.
-    const resultado = await entrar(email, senha);
+    const resultado = await entrar(email.trim(), password);
 
-    setLoading(false);
+    if(!resultado.success){
 
-    if (!resultado.success) {
-      setErro(resultado.error);
+      setErro(resultado.error)
+
+      Alert.alert('Erro', resultado.error);
+
       return;
     }
 
@@ -77,8 +81,8 @@ export default function Login() {
             />
             <AuthInput
               label="Senha"
-              value={senha}
-              onChangeText={setSenha}
+              value={password}
+              onChangeText={setPassword}
               secureTextEntry
             />
 
