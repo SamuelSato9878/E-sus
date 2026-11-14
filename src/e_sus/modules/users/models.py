@@ -13,9 +13,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 
 class UserRole(str, Enum):
-    PATIENT = "Paciente"
-    PROFESSIONAL = "Profissional de Saúde"
-    ADMIN = "Admin"
+    PATIENT = "PATIENT"
+    PROFESSIONAL = "PROFESSIONAL"
+    ADMIN = "ADMIN"
 
 class User(Base):
     __tablename__ = "users"
@@ -32,7 +32,7 @@ class User(Base):
         index=True
     )
 
-    name: Mapped[str] = mapped_column(
+    user_name: Mapped[str] = mapped_column(
         String(100),
         nullable=False
     )

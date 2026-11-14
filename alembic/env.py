@@ -8,12 +8,19 @@ from alembic import context
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(project_root, "src"))
 
-from e_sus.core.database import Base
 from e_sus.core.config import settings
-
-from e_sus.modules.users.models import Base
+from e_sus.core.database import Base
+from e_sus.modules.users import models as _user_models  # noqa: F401
+from e_sus.modules.patients import models as _patient_models  # noqa: F401
+from e_sus.modules.professional import models as _professional_models  # noqa: F401
+from e_sus.modules.specialties import models as _specialty_models  # noqa: F401
+from e_sus.modules.services import models as _service_models  # noqa: F401
+from e_sus.modules.schedules import models as _schedule_models  # noqa: F401
+from e_sus.modules.appointments import models as _appointment_models  # noqa: F401
+from e_sus.modules.notificatons import models as _notification_models  # noqa: F401
 
 
 # this is the Alembic Config object, which provides

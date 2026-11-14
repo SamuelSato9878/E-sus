@@ -1,0 +1,1 @@
+"""Medical specialty catalog module."""

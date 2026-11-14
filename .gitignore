@@ -1,6 +1,7 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 
+docs/
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -65,6 +66,7 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 DataBase.db
+DataBase_clean.db
 
 # Flask stuff:
 instance/

@@ -27,9 +27,9 @@ class AuthService:
         # 2. Cria usuário no Supabase
         try:
             response = self.provider.sign_up(
-                name=data.name,
+                user_name=data.user_name,
                 email=data.email,
-                password=data.password,
+                password=data.password.get_secret_value(),
             )
 
         except Exception as error:
@@ -48,14 +48,14 @@ class AuthService:
             )
             
         user = User(
-            name=data.name,
+            user_name=data.user_name,
             email=data.email,
             supabase_user_id=supabase_user.id
         )
 
         # 4. Salva usuário no banco local
         try:
-            user = self.repository.create(user)
+            user = self.repository.create_patient_user(user)
 
         except Exception:
             self.repository.db.rollback()
@@ -88,35 +88,83 @@ class AuthService:
             "message": "Usuário cadastrado com sucesso.",
         }
 
-    def signin(self, data: LoginRequest) -> dict:
+    @staticmethod
+    def _error_status(error: Exception) -> int | None:
+        value = getattr(error, "status", None)
+        return value if isinstance(value, int) else None
 
+    def signin(self, data: LoginRequest) -> dict:
         try:
             response = self.provider.sign_in(
-                email=data.email,
-                password=data.password,
+                email=str(data.email),
+                password=data.password.get_secret_value(),
+            )
+        except Exception as error:
+            code = self._error_status(error)
+            temporary = code is None or code == 429 or code >= 500
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE if temporary else status.HTTP_401_UNAUTHORIZED,
+                detail="Serviço de autenticação temporariamente indisponível." if temporary else "E-mail ou senha inválidos.",
             )
 
-        except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="E-mail ou senha inválidos.",
-            )
+        if not response.user or not response.session:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha inválidos.")
 
-        if not response.user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Usuário não encontrado.",
-            )
-
-        if not response.session:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Não foi possível obter a sessão.",
-            )
+        user = self.repository.get_by_supabase_user_id(response.user.id)
+        if not user:
+            try:
+                self.provider.sign_out(response.session.access_token)
+            except Exception:
+                pass
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
 
         return {
             "access_token": response.session.access_token,
             "refresh_token": response.session.refresh_token,
             "user_id": response.user.id,
             "email": response.user.email,
+            "user": user,
         }
+
+    def refresh(self, refresh_token: str) -> dict:
+        try:
+            response = self.provider.refresh_session(refresh_token)
+        except Exception as error:
+            code = self._error_status(error)
+            temporary = code is None or code == 429 or code >= 500
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE if temporary else status.HTTP_401_UNAUTHORIZED,
+                detail="Não foi possível renovar a sessão." if temporary else "Sessão inválida ou expirada.",
+            )
+        if not response.session:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Não foi possível renovar a sessão.")
+        return {"access_token": response.session.access_token, "refresh_token": response.session.refresh_token}
+
+    def logout(self, access_token: str) -> None:
+        try:
+            self.provider.sign_out(access_token)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Não foi possível encerrar a sessão no provedor de identidade.",
+            )
+
+    def request_password_recovery(self, email: str) -> dict:
+        from e_sus.core.config import settings
+        try:
+            self.provider.request_password_recovery(email, settings.SUPABASE_PASSWORD_RESET_REDIRECT_TO)
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Não foi possível processar a solicitação.")
+        return {"message": "Se o e-mail estiver cadastrado, você receberá as instruções."}
+
+    def update_password(self, access_token: str, refresh_token: str, password: str) -> dict:
+        try:
+            self.provider.update_password(access_token, refresh_token, password)
+        except Exception as error:
+            code = self._error_status(error)
+            invalid = code is not None and code < 500 and code != 429
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED if invalid else status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Link inválido ou expirado." if invalid else "Não foi possível atualizar a senha.",
+            )
+        return {"message": "Senha atualizada com sucesso."}

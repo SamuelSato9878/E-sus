@@ -1,6 +1,9 @@
+import pytest
 
-def python_tests():
-    print("Teste python")
+
+def python_tests() -> int:
+    return pytest.main(["tests"])
+
 
 if __name__ == "__main__":
-    python_tests()
+    raise SystemExit(python_tests())

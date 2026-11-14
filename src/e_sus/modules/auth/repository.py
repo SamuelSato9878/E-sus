@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from e_sus.modules.patients.models import Patient
 from e_sus.modules.users.models import User
 
 class AuthRepository():
@@ -14,6 +15,14 @@ class AuthRepository():
 
         return user
     
+    def create_patient_user(self, user: User) -> User:
+        self.db.add(user)
+        self.db.flush()
+        self.db.add(Patient(user_id=user.id, is_active=True))
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
     def get_by_email(self, email: str) -> User | None:
         statement = select(User).where(
             User.email == email
@@ -28,3 +37,4 @@ class AuthRepository():
         
         return self.db.scalar(statement)
     
+

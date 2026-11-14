@@ -4,5 +4,6 @@
         "**/__pycache__": true,
         "**/.pytest_cache": true,
         "**/.mypy_cache": true,
-    }
+    },
+    "python.terminal.useEnvFile": true
 }
