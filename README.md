@@ -7,10 +7,7 @@ Aplicativo Expo/React Native para cadastro de pacientes, consulta ao catálogo d
 1. Instale Node.js e as dependências com `npm install`.
 2. Copie `.env.example` para `.env` e configure:
    - `EXPO_PUBLIC_API_URL`: URL HTTPS do backend.
-   - `EXPO_PUBLIC_SUPABASE_URL`: URL pública do projeto Supabase.
-   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`: chave pública anon/publishable.
-3. No Supabase, permita `esus://esqueci-senha` como URL de redirecionamento para recuperação de senha.
-4. Inicie com `npm start`. Use um development build para validar as funcionalidades nativas em Android/iOS.
+3. Inicie com `npm start`. Use um development build para validar as funcionalidades nativas em Android/iOS.
 
 As variáveis `EXPO_PUBLIC_` são incluídas no app. Use somente a chave anon/publishable do Supabase. Nunca inclua `service_role`, `SUPABASE_KEY` de servidor, senha de banco ou outro segredo.
 
