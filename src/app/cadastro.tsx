@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, router } from 'expo-router';
+import { Link } from 'expo-router';
 import { useState } from 'react';
 import {
   Image,
@@ -15,9 +15,9 @@ import {
 import AuthInput from '../components/AuthInput';
 import ErrorText from '../components/ErrorText';
 import PrimaryButton from '../components/PrimaryButton';
-import SocialButton from '../components/SocialButton';
 
 import { cadastrar } from '../services/auth';
+import { mensagemDeErro } from '../services/api';
 
 const SENHA_MIN = 8;
 
@@ -29,9 +29,10 @@ export default function Cadastro() {
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [mensagem, setMensagem] = useState<string | null>(null);
 
   function validar(): string | null {
-    if (!user_name) return 'informe um nome';
+    if (!user_name.trim()) return 'Informe seu nome.';
     if (!email.trim()) return 'Informe um email.';
     if (password.length < SENHA_MIN) return `A senha precisa ter pelo menos ${SENHA_MIN} caracteres.`;
     if (password !== confirmarSenha) return 'As senhas não coincidem.';
@@ -47,18 +48,19 @@ export default function Cadastro() {
     }
 
     setErro(null);
+    setMensagem(null);
     setLoading(true);
 
-    const resultado = await cadastrar(user_name, email, password);
-
-    setLoading(false);
-
-    if (!resultado.success) {
-      setErro(resultado.error);
-      return;
+    try {
+      const resultado = await cadastrar(user_name, email, password);
+      setMensagem(resultado.access_token
+        ? 'Conta criada. Entre para completar seu perfil.'
+        : resultado.message || 'Enviamos um link de confirmação. Depois, entre com seu e-mail e senha.');
+    } catch (error) {
+      setErro(mensagemDeErro(error, 'Não foi possível cadastrar. Tente novamente.'));
+    } finally {
+      setLoading(false);
     }
-
-    router.replace('/login');
   }
 
   return (
@@ -89,7 +91,7 @@ export default function Cadastro() {
               label="Nome"
               value={user_name}
               onChangeText={setName}
-              keyboardType="email-address"
+              autoCapitalize="words"
             />
             <AuthInput
               label="Email"
@@ -126,15 +128,9 @@ export default function Cadastro() {
             <View style={styles.spacer} />
 
             <ErrorText>{erro}</ErrorText>
+            {!!mensagem && <Text style={styles.success}>{mensagem}</Text>}
 
-            <PrimaryButton label="Cadastre-se" onPress={handleCadastro} loading={loading} />
-          </View>
-
-          <Text style={styles.entrarCom}>Entrar com</Text>
-
-          <View style={styles.socialRow}>
-            <SocialButton provider="facebook" />
-            <SocialButton provider="google" />
+            <PrimaryButton label="Cadastre-se" onPress={handleCadastro} loading={loading} disabled={!!mensagem} />
           </View>
 
           <Text style={styles.footerText}>
@@ -216,4 +212,5 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
     color: '#3A4A5C',
   },
+  success: { color: '#087B55', fontSize: 13, textAlign: 'center', marginBottom: 12 },
 });

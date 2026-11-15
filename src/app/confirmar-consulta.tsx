@@ -1,197 +1,55 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MedicoAvatar from '../components/MedicoAvatar';
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import PrimaryButton from '../components/PrimaryButton';
 import ScreenHeader from '../components/ScreenHeader';
-import { useCriarAgendamento } from '../hooks/useCriarAgendamento';
-import { useMedico } from '../hooks/useMedico';
-import { formatarCpf } from '../utils/cpf';
-import { formatarDataExtenso } from '../utils/datas';
+import { useAsyncData } from '../hooks/useAsyncData';
+import { mensagemDeErro } from '../services/api';
+import { criarConsulta, listarProfissionais, listarServicos, remarcarConsulta } from '../services/pacienteApi';
 
 export default function ConfirmarConsulta() {
-  const params = useLocalSearchParams<{ medicoId: string; data: string; hora: string }>();
-  const medicoId = Number(params.medicoId);
-  const insets = useSafeAreaInsets();
+  const { medicoId, serviceId, data, hora, appointmentId } = useLocalSearchParams<{ medicoId: string; serviceId: string; data: string; hora: string; appointmentId?: string }>();
+  const professionalId = Number(medicoId);
+  const serviceNumericId = Number(serviceId);
+  const { data: professionals } = useAsyncData(listarProfissionais, []);
+  const { data: services } = useAsyncData(listarServicos, []);
+  const professional = professionals?.find((item) => item.id === professionalId);
+  const service = services?.find((item) => item.id === serviceNumericId);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const formattedDate = useMemo(() => new Date(`${data}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), [data]);
 
-  const { medico } = useMedico(medicoId);
-  const { enviar, enviando, erro } = useCriarAgendamento();
-  const [nome, setNome] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [motivo, setMotivo] = useState('');
-
-  async function handleEnviar() {
-    const ok = await enviar({ medicoId, data: params.data, hora: params.hora, nome, cpf, motivo });
-    // A integração com o WhatsApp da UBS fica a cargo do backend;
-    // aqui o agendamento é apenas registrado como "pendente".
-    if (ok) router.replace('/agendamento-enviado');
+  async function confirmar() {
+    setLoading(true);
+    setError('');
+    try {
+      const startAt = `${data}T${hora}:00-03:00`;
+      const appointment = appointmentId
+        ? await remarcarConsulta(Number(appointmentId), startAt)
+        : await criarConsulta(professionalId, serviceNumericId, startAt);
+      router.replace({ pathname: '/agendamento-enviado', params: { appointmentId: String(appointment.id), verificationCode: appointment.verification_code, professionalName: appointment.professional_name, serviceName: appointment.service_name, startAt: appointment.start_at, rescheduled: appointmentId ? 'true' : 'false' } });
+    } catch (cause) {
+      setError(mensagemDeErro(cause, 'Não foi possível criar a consulta. Atualize os horários e tente novamente.'));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  return (
-    <View style={styles.container}>
-      <ScreenHeader titulo="Confirme sua consulta" />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.flex}
-      >
-        <ScrollView
-          contentContainerStyle={[styles.conteudo, { paddingBottom: insets.bottom + 24 }]}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.card}>
-            <MedicoAvatar fotoUrl={medico?.fotoUrl ?? null} size={110} />
-            <View style={styles.cardInfo}>
-              <Text style={styles.medicoNome}>{medico?.nome ?? ' '}</Text>
-              <Text style={styles.data}>{formatarDataExtenso(params.data)}</Text>
-              <Text style={styles.hora}>{params.hora}h</Text>
-            </View>
-          </View>
-
-          <View style={styles.form}>
-            <Text style={styles.label}>nome:</Text>
-            <TextInput
-              value={nome}
-              onChangeText={setNome}
-              placeholder="[ nome completo ]"
-              placeholderTextColor="#A0A0A0"
-              autoCapitalize="words"
-              style={styles.input}
-            />
-
-            <Text style={styles.label}>CPF:</Text>
-            <TextInput
-              value={cpf}
-              onChangeText={(t) => setCpf(formatarCpf(t))}
-              placeholder="[ 000.000.000-00 ]"
-              placeholderTextColor="#A0A0A0"
-              keyboardType="number-pad"
-              maxLength={14}
-              style={styles.input}
-            />
-
-            <TextInput
-              value={motivo}
-              onChangeText={setMotivo}
-              placeholder="Sintomas / motivo (opcional)"
-              placeholderTextColor="#A0A0A0"
-              multiline
-              textAlignVertical="top"
-              style={styles.motivo}
-            />
-          </View>
-
-          <View style={styles.alerta}>
-            <Ionicons name="warning-outline" size={28} color="#3A3A3A" />
-            <Text style={styles.alertaTexto}>
-              Este agendamento será validado pelo WhatsApp da UBS para confirmação final.
-            </Text>
-          </View>
-
-          {erro && <Text style={styles.erro}>{erro}</Text>}
-
-          <Pressable
-            onPress={handleEnviar}
-            disabled={enviando}
-            style={({ pressed }) => [styles.botao, (pressed || enviando) && styles.botaoPressed]}
-          >
-            {enviando ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <>
-                <Ionicons name="logo-whatsapp" size={22} color="#FFFFFF" />
-                <Text style={styles.botaoTexto}>ENVIAR PARA WHATSAPP</Text>
-              </>
-            )}
-          </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
-  );
+  return <View style={styles.container}>
+    <ScreenHeader titulo="Confirme sua consulta" />
+    <ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.card}>
+        <Text style={styles.caption}>SERVIÇO</Text><Text style={styles.name}>{service?.name ?? 'Carregando…'}</Text>
+        <Text style={styles.caption}>PROFISSIONAL</Text><Text style={styles.name}>{professional?.name ?? 'Carregando…'}</Text>
+        <Text style={styles.caption}>DATA E HORÁRIO</Text><Text style={styles.name}>{formattedDate}</Text><Text style={styles.time}>{hora}</Text>
+        {service && <Text style={styles.detail}>{service.duration_minutes} minutos</Text>}
+      </View>
+      <Text style={styles.notice}>A disponibilidade será validada novamente ao confirmar. A consulta só estará marcada após a resposta de sucesso do sistema.</Text>
+      {!!error && <Text style={styles.error}>{error}</Text>}
+      <PrimaryButton label={appointmentId ? 'Confirmar remarcação' : 'Confirmar consulta'} onPress={confirmar} loading={loading} disabled={!professional || !service} />
+      {loading && <ActivityIndicator style={styles.loader} color="#1CA8DB" />}
+    </ScrollView>
+  </View>;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  flex: { flex: 1 },
-  conteudo: { paddingHorizontal: 20, paddingTop: 40 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#F5F5F5',
-    borderWidth: 1,
-    borderColor: '#D2D2D2',
-    borderRadius: 4,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  cardInfo: { flex: 1, alignItems: 'center' },
-  medicoNome: { fontSize: 17, fontWeight: '700', color: '#111111', marginBottom: 12 },
-  data: { fontSize: 15, color: '#333333', textAlign: 'center' },
-  hora: { fontSize: 15, fontWeight: '700', color: '#111111', marginTop: 18 },
-  form: { paddingHorizontal: 20, marginTop: 50 },
-  label: { fontSize: 16, color: '#222222', marginTop: 16 },
-  input: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#6B7C93',
-    fontSize: 14,
-    color: '#222222',
-    paddingVertical: 4,
-    paddingHorizontal: 30,
-  },
-  motivo: {
-    alignSelf: 'center',
-    width: '75%',
-    height: 100,
-    borderWidth: 1,
-    borderColor: '#555555',
-    marginTop: 14,
-    padding: 6,
-    fontSize: 13,
-    color: '#222222',
-  },
-  alerta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#FFE484',
-    borderTopRightRadius: 50,
-    borderBottomLeftRadius: 50,
-    borderBottomRightRadius: 50,
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    marginHorizontal: 12,
-    marginTop: 8,
-  },
-  alertaTexto: { flex: 1, fontSize: 13, color: '#222222' },
-  erro: { color: '#B3261E', fontSize: 13, textAlign: 'center', marginTop: 16 },
-  botao: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#7ED957',
-    borderTopRightRadius: 20,
-    borderBottomLeftRadius: 20,
-    paddingVertical: 12,
-    marginHorizontal: 12,
-    marginTop: 28,
-  },
-  botaoPressed: { opacity: 0.8 },
-  botaoTexto: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
-});
+const styles = StyleSheet.create({ container: { flex: 1, backgroundColor: '#fff' }, content: { padding: 20, gap: 18 }, card: { backgroundColor: '#F3F7F9', padding: 20, borderRadius: 12, gap: 8 }, caption: { fontSize: 12, fontWeight: '700', color: '#617387', marginTop: 10 }, name: { fontSize: 17, fontWeight: '700', color: '#17212B' }, time: { fontSize: 22, fontWeight: '700', color: '#0866A3' }, detail: { color: '#536579' }, notice: { color: '#536579', lineHeight: 21 }, error: { color: '#B3261E' }, loader: { marginTop: 8 } });

@@ -1,9 +1,8 @@
-import type { Usuario } from '../db/Database';
+import type { Usuario } from '../services/auth';
 
 /**
- * Nome mostrado nas saudações. O cadastro ainda não pede nome, então usa
- * o início do email; quando o backend devolver o nome, troque só aqui.
+ * Nome de exibição retornado pelo backend.
  */
 export function nomeDeExibicao(usuario: Usuario | null): string | undefined {
-  return usuario?.email.split('@')[0];
+  return usuario?.user_name || usuario?.email.split('@')[0];
 }

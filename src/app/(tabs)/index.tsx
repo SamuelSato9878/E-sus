@@ -1,14 +1,16 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useBottomTabBarHeight } from 'expo-router/tabs';
-import { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HomeHeader from '../../components/HomeHeader';
 import SearchBar from '../../components/SearchBar';
 import SpecialtyButton from '../../components/SpecialtyButton';
 import { useSessao } from '../../context/SessaoContext';
 import { SPECIALTIES, type Specialty } from '../../data/specialties';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { listarEspecialidades } from '../../services/pacienteApi';
 import { nomeDeExibicao } from '../../utils/usuario';
 
 export default function Home() {
@@ -18,12 +20,14 @@ export default function Home() {
   const { usuario } = useSessao();
   const nome = nomeDeExibicao(usuario);
   const [busca, setBusca] = useState('');
+  const { data: catalogo, loading, error } = useAsyncData(listarEspecialidades, []);
+  const especialidades = (catalogo ?? []).map((item) => {
+    const local = SPECIALTIES.find((s) => s.label.toLocaleLowerCase('pt-BR') === item.name.toLocaleLowerCase('pt-BR'));
+    return { id: String(item.id), label: item.name, icon: local?.icon ?? SPECIALTIES[0].icon };
+  });
 
-  const especialidadesFiltradas = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return SPECIALTIES;
-    return SPECIALTIES.filter((s) => s.label.toLowerCase().includes(termo));
-  }, [busca]);
+  const termo = busca.trim().toLowerCase();
+  const especialidadesFiltradas = termo ? especialidades.filter((s) => s.label.toLowerCase().includes(termo)) : especialidades;
 
   function handleSelectSpecialty(s: Specialty) {
     router.push({ pathname: '/especialidade/[id]', params: { id: s.id } });
@@ -37,7 +41,7 @@ export default function Home() {
       style={styles.container}
     >
       <FlatList
-        data={especialidadesFiltradas}
+        data={loading || error ? [] : especialidadesFiltradas}
         keyExtractor={(item) => item.id}
         numColumns={2}
         columnWrapperStyle={styles.row}
@@ -51,6 +55,8 @@ export default function Home() {
             <View style={styles.searchSpacer} />
             <SearchBar value={busca} onChangeText={setBusca} />
             <View style={styles.gridSpacer} />
+            {loading && <ActivityIndicator color="#fff" />}
+            {!!error && <Text style={styles.estado}>Não foi possível carregar o catálogo. Verifique a conexão e tente novamente.</Text>}
           </View>
         }
         renderItem={({ item }) => (
@@ -75,4 +81,5 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 16,
   },
+  estado: { color: '#fff', textAlign: 'center', marginTop: 12 },
 });

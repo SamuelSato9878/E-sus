@@ -1,5 +1,6 @@
 {
   "expo": {
+    "sdkVersion": "58.0.0",
     "name": "E-sus",
     "slug": "app",
     "version": "1.0.0",
@@ -15,7 +16,8 @@
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/icon.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.samuelsantosbarbosa.app"
     },
     "web": {
       "bundler": "metro",
@@ -46,6 +48,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "791ad8c5-a80a-4acd-8f66-5959361b3da4"
+      }
     }
   }
 }

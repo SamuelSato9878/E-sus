@@ -1,96 +1,44 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import MedicoCard from '../../components/MedicoCard';
 import ScreenHeader from '../../components/ScreenHeader';
-import SpecialtyPicker from '../../components/SpecialtyPicker';
-import { SPECIALTIES } from '../../data/specialties';
-import type { Medico } from '../../db/medicos';
-import { useMedicos } from '../../hooks/useMedicos';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { listarEspecialidades, listarProfissionais, listarServicos } from '../../services/pacienteApi';
 
-export default function SelecionarMedico() {
+export default function ServicosEspecialidade() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const insets = useSafeAreaInsets();
-  const especialidade = SPECIALTIES.find((s) => s.id === id) ?? SPECIALTIES[0];
-  const { medicos, loading, error, recarregar } = useMedicos(especialidade.id);
-
-  function abrirAgenda(medico: Medico) {
-    router.push({ pathname: '/agenda/[medicoId]', params: { medicoId: String(medico.id) } });
-  }
+  const specialtyId = Number(id);
+  const { data: specialties } = useAsyncData(listarEspecialidades, []);
+  const { data: services, loading, error } = useAsyncData(listarServicos, []);
+  const { data: professionals } = useAsyncData(listarProfissionais, []);
+  const specialty = specialties?.find((item) => item.id === specialtyId);
+  const items = useMemo(() => (services ?? []).filter((item) => item.specialty_id === specialtyId && item.is_active), [services, specialtyId]);
 
   return (
     <View style={styles.container}>
-      <ScreenHeader titulo="Selecione o Médico" />
-
-      <FlatList
-        data={loading || error ? [] : medicos}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 24 }]}
-        ItemSeparatorComponent={() => <View style={styles.separador} />}
-        ListHeaderComponent={
-          <View style={styles.headerLista}>
-            <SpecialtyPicker
-              selecionada={especialidade}
-              onChange={(s) => router.setParams({ id: s.id })}
-            />
-            <View style={styles.tituloLinha}>
-              <Text style={styles.titulo}>MÉDICOS DISPONÍVEIS</Text>
-              {/* Ainda não há critérios de filtro definidos; o botão é só visual por enquanto. */}
-              <Pressable style={styles.filtros}>
-                <Ionicons name="options-outline" size={18} color="#2FA8D8" />
-                <Text style={styles.filtrosTexto}>filtros</Text>
-              </Pressable>
-            </View>
-          </View>
-        }
-        ListEmptyComponent={
-          loading ? (
-            <ActivityIndicator color="#2FBDE8" style={styles.estado} />
-          ) : error ? (
-            <Pressable onPress={recarregar} style={styles.estado}>
-              <Text style={styles.estadoTexto}>{error} Toque para tentar de novo.</Text>
-            </Pressable>
-          ) : (
-            <Text style={[styles.estado, styles.estadoTexto]}>
-              Nenhum médico cadastrado para {especialidade.label}.
-            </Text>
-          )
-        }
-        renderItem={({ item }) => <MedicoCard medico={item} onPress={abrirAgenda} />}
-      />
+      <ScreenHeader titulo={specialty?.name ?? 'Serviços disponíveis'} />
+      {loading ? <ActivityIndicator style={styles.center} color="#1CA8DB" /> : error ? <Text style={styles.center}>Não foi possível carregar os serviços. Verifique sua conexão.</Text> : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={<Text style={styles.center}>Não há serviços ativos nesta especialidade.</Text>}
+          renderItem={({ item }) => {
+            const providers = (professionals ?? []).filter((person) => person.is_active && item.professional_ids.includes(person.id));
+            return <View style={styles.card}>
+              <Text style={styles.name}>{item.name}</Text>
+              {!!item.description && <Text style={styles.detail}>{item.description}</Text>}
+              <Text style={styles.detail}>Duração: {item.duration_minutes} min</Text>
+              <Text style={styles.subtitle}>Profissionais disponíveis</Text>
+              {providers.length ? providers.map((person) => <Pressable key={person.id} style={styles.person} onPress={() => router.push({ pathname: '/agenda/[medicoId]', params: { medicoId: String(person.id), serviceId: String(item.id) } })}>
+                <Text style={styles.personName}>{person.name}</Text><Text style={styles.detail}>{person.council_type} {person.council_state} {person.council_number}</Text>
+              </Pressable>) : <Text style={styles.detail}>Nenhum profissional habilitado no momento.</Text>}
+            </View>;
+          }}
+        />
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
-  lista: { paddingHorizontal: 18, paddingTop: 10 },
-  headerLista: { marginBottom: 20 },
-  tituloLinha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 44,
-    paddingHorizontal: 10,
-  },
-  titulo: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111111',
-  },
-  filtros: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1.5,
-    borderColor: '#2FA8D8',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  filtrosTexto: { fontSize: 15, color: '#2FA8D8' },
-  separador: { height: 34 },
-  estado: { marginTop: 40, alignItems: 'center' },
-  estadoTexto: { textAlign: 'center', fontSize: 14, color: '#5B6B7F' },
-});
+const styles = StyleSheet.create({ container: { flex: 1, backgroundColor: '#fff' }, list: { padding: 18, gap: 14 }, center: { textAlign: 'center', margin: 24, color: '#536579' }, card: { backgroundColor: '#F5F8FA', borderRadius: 12, padding: 16, gap: 8 }, name: { fontSize: 18, fontWeight: '700', color: '#17212B' }, detail: { color: '#536579', fontSize: 14 }, subtitle: { fontWeight: '700', color: '#17212B', marginTop: 8 }, person: { padding: 12, borderRadius: 8, backgroundColor: '#E4F5FB', marginTop: 4 }, personName: { color: '#0866A3', fontWeight: '700' } });

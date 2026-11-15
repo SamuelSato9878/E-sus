@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Href, Link, router } from 'expo-router';
+import { type Href, Link, router } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
@@ -14,7 +14,6 @@ import {
 import AuthInput from '../components/AuthInput';
 import ErrorText from '../components/ErrorText';
 import PrimaryButton from '../components/PrimaryButton';
-import SocialButton from '../components/SocialButton';
 
 import { useSessao } from '../context/SessaoContext';
 
@@ -24,7 +23,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const { entrar } = useSessao()
+  const { entrar } = useSessao();
   
   async function handleLogin() {
     if (!email.trim() || !password) {
@@ -35,18 +34,22 @@ export default function Login() {
     setErro(null);
     setLoading(true);
 
-    const resultado = await entrar(email.trim(), password);
+    try {
+      const resultado = await entrar(email.trim(), password);
+      setLoading(false);
 
-    if(!resultado.success){
+      if (!resultado.success) {
+        setErro(resultado.error);
+        Alert.alert('Erro', resultado.error);
+        return;
+      }
 
-      setErro(resultado.error)
-
-      Alert.alert('Erro', resultado.error);
-
-      return;
+      router.replace(resultado.perfilNecessario ? '/perfil-paciente' as Href : '/(tabs)' as Href);
+    } catch (error) {
+      console.error('Falha inesperada ao concluir login:', error);
+      setErro('Não foi possível concluir o login. Tente novamente.');
+      setLoading(false);
     }
-
-    router.replace('/(tabs)');
   }
 
   return (
@@ -96,13 +99,6 @@ export default function Login() {
             <ErrorText>{erro}</ErrorText>
 
             <PrimaryButton label="Entrar" onPress={handleLogin} loading={loading} />
-          </View>
-
-          <View style={styles.socialSpacer} />
-
-          <View style={styles.socialRow}>
-            <SocialButton provider="facebook" />
-            <SocialButton provider="google" />
           </View>
 
           <Text style={styles.footerText}>

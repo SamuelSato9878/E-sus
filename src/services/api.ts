@@ -1,7 +1,7 @@
-import { create, isAxiosError,  } from 'axios';
-import { tokenAtual } from './sessaoStorage';
+import { create, isAxiosError, type InternalAxiosRequestConfig } from 'axios';
+import { API_URL } from '../config/env';
+import { atualizarAccessToken, limparSessao, refreshTokenAtual, tokenAtual } from './sessaoStorage';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL
 
 /**
  * Cliente HTTP único do app. Todas as chamadas ao backend devem passar
@@ -16,33 +16,59 @@ export const api = create({
 
 // Envia o token da sessão (se houver) em todas as requisições.
 api.interceptors.request.use(async (config) => {
+  if (['/auth/login', '/auth/signup', '/auth/refresh'].includes(config.url ?? '')) return config;
   const token = await tokenAtual();
-
-  console.log('TOKEN PARA REQUISIÇÃO:', token);
-
   if (token) config.headers.Authorization = `Bearer ${token}`;
-
-  console.log('AUTH HEADER:', config.headers.Authorization)
-
   return config;
 });
   
 let aoSessaoExpirar: (() => void) | null = null;
 
 /** Registra o que fazer quando a API recusar o token (ex.: deslogar). */
-export function definirAoSessaoExpirar(callback: (() => void) | null) {
+export function definirAoSessaoExpirar(callback: (() => void | Promise<void>) | null) {
   aoSessaoExpirar = callback;
+}
+
+let refreshEmAndamento: Promise<string | null> | null = null;
+
+type TokensRenovados = { access_token: string; refresh_token: string };
+
+async function renovarAccessToken(): Promise<string | null> {
+  const refreshToken = await refreshTokenAtual();
+  if (!refreshToken) return null;
+  const response = await api.post<TokensRenovados>('/auth/refresh', { refresh_token: refreshToken });
+  await atualizarAccessToken(response.data.access_token, response.data.refresh_token);
+  return response.data.access_token;
 }
 
 // 401 numa requisição que levava token = sessão expirada/inválida.
 // (Um 401 no próprio login, sem token, é só senha errada e não entra aqui.)
-api.interceptors.response.use(undefined, (erro) => {
+api.interceptors.response.use(undefined, async (erro) => {
   if (
     isAxiosError(erro) &&
     erro.response?.status === 401 &&
-    erro.config?.headers?.Authorization
+    erro.config?.headers?.Authorization &&
+    erro.config.url !== '/auth/refresh' &&
+    (erro.config as InternalAxiosRequestConfig & { _retry?: boolean })._retry !== true
   ) {
-    aoSessaoExpirar?.();
+    const config = erro.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    config._retry = true;
+    try {
+      refreshEmAndamento ??= renovarAccessToken().finally(() => { refreshEmAndamento = null; });
+      const accessToken = await refreshEmAndamento;
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+        return api.request(config);
+      }
+    } catch (erroRefresh) {
+      // Falhas temporárias não invalidam uma sessão que ainda pode ser recuperada.
+      const statusRefresh = isAxiosError(erroRefresh) ? erroRefresh.response?.status : undefined;
+      if (statusRefresh !== 400 && statusRefresh !== 401 && statusRefresh !== 403) {
+        return Promise.reject(erro);
+      }
+    }
+    await limparSessao();
+    await aoSessaoExpirar?.();
   }
   return Promise.reject(erro);
 });
@@ -58,9 +84,13 @@ export function mensagemDeErro(erro: unknown, padrao = 'Algo deu errado. Tente n
     return 'Sem conexão com o servidor. Verifique sua internet.';
   }
 
-  // Usa a mensagem do backend quando ele mandar uma.
-  const dados = erro.response.data as { message?: unknown; mensagem?: unknown; error?: unknown };
-  const doBackend = dados?.message ?? dados?.mensagem ?? dados?.error;
+  const dados = erro.response.data as { detail?: unknown; message?: unknown; mensagem?: unknown; error?: unknown };
+  const detail = dados?.detail;
+  const doBackend = typeof detail === 'string'
+    ? detail
+    : Array.isArray(detail)
+      ? detail.map((item) => typeof item === 'object' && item && 'msg' in item ? String(item.msg) : '').filter(Boolean).join('\n')
+      : dados?.message ?? dados?.mensagem ?? dados?.error;
   if (typeof doBackend === 'string' && doBackend.trim()) return doBackend;
 
   if (erro.response.status >= 500) return 'Erro no servidor. Tente novamente mais tarde.';

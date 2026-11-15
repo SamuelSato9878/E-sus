@@ -1,306 +1,216 @@
+import { isAxiosError } from 'axios';
 import { router } from 'expo-router';
+import { createContext, use, useEffect, useState, type PropsWithChildren } from 'react';
+import { definirAoSessaoExpirar, mensagemDeErro } from '../services/api';
+import { buscarUsuarioAtual, encerrarSessao, login, type AuthTokens, type Usuario } from '../services/auth';
+import { buscarPerfil, type PerfilPaciente } from '../services/pacienteApi';
+import { limparSessao, salvarSessao, tokenAtual } from '../services/sessaoStorage';
 
-import {
-  createContext,
-  use,
-  useEffect,
-  useState,
-  type PropsWithChildren,
-} from 'react';
-
-import {
-  definirAoSessaoExpirar,
-} from '../services/api';
-
-import {
-  login,
-  buscarUsuarioAtual,
-} from '../services/auth';
-
-import {
-  limparSessao,
-  salvarSessao,
-  tokenAtual,
-} from '../services/sessaoStorage';
-
-
-// ============================================================
-// TIPOS
-// ============================================================
-
-export type UserRole =
-  | 'paciente'
-  | 'medico'
-  | 'admin';
-
-
-export interface Usuario {
-  id: string;
-  email: string;
-  name?: string;
-  phone?: string;
-  cpf?: string;
-  role?: UserRole;
-}
-
-
-export interface LoginData {
-  access_token: string;
-  refresh_token: string;
-  user_id: string;
-  email: string;
-}
-
-
-export type LoginResult =
-  | {
-      success: true;
-      data: LoginData;
-    }
-  | {
-      success: false;
-      error: string;
-    };
-
-
-interface SessaoContextData {
-
+type EntrarResult = { success: true; perfilNecessario: boolean } | { success: false; error: string };
+type SessaoContextData = {
   usuario: Usuario | null;
-
+  perfil: PerfilPaciente | null;
   carregando: boolean;
-
-  entrar: (
-    email: string,
-    password: string
-  ) => Promise<LoginResult>;
-
+  perfilCarregando: boolean;
+  entrar: (email: string, password: string) => Promise<EntrarResult>;
   sair: () => Promise<void>;
-}
+  atualizarPerfilSessao: (perfil: PerfilPaciente | null) => void;
+  recarregarPerfil: () => Promise<void>;
+};
 
+const SessaoContext = createContext<SessaoContextData | null>(null);
 
-// ============================================================
-// CONTEXT
-// ============================================================
-
-const SessaoContext =
-  createContext<SessaoContextData | null>(null);
-
-
-// ============================================================
-// HOOK
-// ============================================================
-
-export function useSessao(): SessaoContextData {
-
+export function useSessao() {
   const sessao = use(SessaoContext);
-
-  if (!sessao) {
-    throw new Error(
-      'useSessao precisa estar dentro de <SessaoProvider>.'
-    );
-  }
-
+  if (!sessao) throw new Error('useSessao precisa estar dentro de <SessaoProvider>.');
   return sessao;
 }
 
+export function SessaoProvider({ children }: PropsWithChildren) {
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [perfil, setPerfil] = useState<PerfilPaciente | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [perfilCarregando, setPerfilCarregando] = useState(false);
 
-// ============================================================
-// PROVIDER
-// ============================================================
-
-export function SessaoProvider({
-  children,
-}: PropsWithChildren) {
-
-  const [usuario, setUsuario] =
-    useState<Usuario | null>(null);
-
-  const [carregando, setCarregando] =
-    useState(true);
-
-
-  // ==========================================================
-  // RESTAURAR SESSÃO
-  // ==========================================================
+  async function recarregarPerfil() {
+    if (!usuario) return;
+    setPerfilCarregando(true);
+    try {
+      setPerfil(await buscarPerfil());
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) setPerfil(null);
+      else throw error;
+    } finally {
+      setPerfilCarregando(false);
+    }
+  }
 
   useEffect(() => {
-
-    async function restaurarSessao() {
-
+    let ativo = true;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    async function restaurar() {
       try {
-
-        const token = await tokenAtual();
-
-        // ----------------------------------------------
-        // NÃO EXISTE TOKEN
-        // ----------------------------------------------
-
-        if (!token) {
+        if (!(await tokenAtual())) {
+          if (ativo) setCarregando(false);
           return;
         }
-
-
-        // ----------------------------------------------
-        // TOKEN EXISTE
-        // BUSCAR USUÁRIO NO BACKEND
-        // ----------------------------------------------
-
-        const resultado =
-          await buscarUsuarioAtual();
-
-
-        if (resultado) {
-
-          setUsuario(resultado);
-
-        } else {
-
+        const usuarioAtual = await buscarUsuarioAtual();
+        if (!ativo) return;
+        if (usuarioAtual.role !== 'PATIENT') {
           await limparSessao();
-
+          setCarregando(false);
+          return;
         }
-
+        setUsuario(usuarioAtual);
+        try {
+          setPerfil(await buscarPerfil());
+        } catch (error) {
+          if (isAxiosError(error) && error.response?.status === 404) setPerfil(null);
+          // Network/server failures preserve the session and can be retried in the app.
+        }
       } catch (error) {
-
-        console.error(
-          'Erro ao restaurar sessão:',
-          error
-        );
-
-        await limparSessao();
-
+        // Interceptor clears storage only when refresh is definitively rejected.
+        // Keep the splash visible and retry if a temporary outage left tokens intact.
+        if (ativo && await tokenAtual()) {
+          if (isAxiosError(error) && [403, 404].includes(error.response?.status ?? 0)) {
+            await limparSessao();
+            setCarregando(false);
+            return;
+          }
+          retryTimer = setTimeout(() => { retryTimer = undefined; void restaurar(); }, 5000);
+          return;
+        }
       } finally {
-
-        setCarregando(false);
-
+        if (ativo && !retryTimer) setCarregando(false);
       }
-
     }
-
-    restaurarSessao();
-
+    void restaurar();
+    return () => { ativo = false; if (retryTimer) clearTimeout(retryTimer); };
   }, []);
-
-
-  // ==========================================================
-  // TOKEN EXPIRADO
-  // ==========================================================
 
   useEffect(() => {
-
-    definirAoSessaoExpirar(async () => {
-
-      await limparSessao();
-
+    definirAoSessaoExpirar(() => {
       setUsuario(null);
-
+      setPerfil(null);
       router.replace('/login');
-
     });
-
-
-    return () => {
-
-      definirAoSessaoExpirar(null);
-
-    };
-
+    return () => definirAoSessaoExpirar(null);
   }, []);
 
-
-  // ==========================================================
-  // LOGIN
-  // ==========================================================
-
-  async function entrar(
-    email: string,
-    password: string
-  ): Promise<LoginResult> {
-
-    const resultado = await login(email, password);
-
-
-    // ----------------------------------------------
-    // LOGIN FALHOU
-    // ----------------------------------------------
-
-    if (!resultado.success) {
-      return {success: false, error: "erro ao logar"};
+  async function entrar(email: string, password: string): Promise<EntrarResult> {
+    let tokens: AuthTokens;
+    try {
+      tokens = await login(email, password);
+    } catch (error) {
+      return {
+        success: false,
+        error: mensagemDeErro(error, 'Não foi possível validar seu login. Confira o e-mail e a senha e tente novamente.'),
+      };
     }
 
+    if (!tokens.access_token || !tokens.refresh_token) {
+      return { success: false, error: tokens.message || 'Confirme seu e-mail antes de entrar.' };
+    }
 
-    // ----------------------------------------------
-    // SALVAR TOKENS
-    // ----------------------------------------------
+    try {
+      await salvarSessao(tokens.access_token, tokens.refresh_token);
+    } catch {
+      return { success: false, error: 'Login confirmado, mas não foi possível salvar a sessão neste aparelho. Tente novamente.' };
+    }
 
-    await salvarSessao(
-      resultado.data.access_token,
-      resultado.data.refresh_token
-    );
+    let usuarioAtual: Usuario;
+/*    try {
+      usuarioAtual = await buscarUsuarioAtual();
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 404) {
+        await limparSessao();
+        return { success: false, error: 'Esta conta ainda não está vinculada ao sistema de pacientes. Fale com o suporte.' };
+      }
+      return {
+        success: false,
+        error: mensagemDeErro(error, 'Login confirmado, mas não foi possível verificar sua conta. Tente novamente.'),
+      };
+    }
 
-
-    // ----------------------------------------------
-    // BUSCAR USUÁRIO COMPLETO
-    // ----------------------------------------------
-
-    const usuario =
-      await buscarUsuarioAtual();
-
-
-    if (!usuario) {
-
+    if (usuarioAtual.role !== 'PATIENT') {
       await limparSessao();
+      return { success: false, error: 'Esta conta não tem acesso ao aplicativo do paciente.' };
+    }*/
+
+    try {
+      usuarioAtual = await buscarUsuarioAtual();
+    } catch (error) {
+      if (isAxiosError(error) && [403, 404].includes(error.response?.status ?? 0)) {
+        await limparSessao();
+        return {
+          success: false,
+          error: error.response?.status === 403
+            ? 'Esta conta não tem acesso ao aplicativo do paciente.'
+            : 'Esta conta ainda não está vinculada ao sistema de pacientes.',
+        };
+      }
 
       return {
         success: false,
-        error: 'Não foi possível carregar os dados do usuário.',
+        error: mensagemDeErro(
+          error,
+          'Login confirmado, mas não foi possível verificar sua conta.'
+        ),
       };
+    }
 
+    if (usuarioAtual.role !== 'PATIENT') {
+      await limparSessao();
+      return { success: false, error: 'Esta conta não tem acesso ao aplicativo do paciente.' };
     }
 
 
-    // ----------------------------------------------
-    // ATUALIZAR CONTEXT
-    // ----------------------------------------------
-
-    setUsuario(usuario);
-
-
-    return {success: true, data: resultado.data};
+    try {
+      const perfilAtual = await buscarPerfil();
+      setPerfil(perfilAtual);
+      // Só libera as rotas autenticadas quando toda a sessão inicial estiver
+      // pronta. O Stack.Protected pode redirecionar a tela de login assim que
+      // `usuario` muda.
+      setUsuario(usuarioAtual);
+      return { success: true, perfilNecessario: !perfilAtual.is_active };
+    } catch (error) {
+      if (isAxiosError(error)) {
+        console.error('Falha ao consultar GET /patients/me após login:', {
+          status: error.response?.status ?? null,
+          url: error.config?.url ?? '/patients/me',
+          method: error.config?.method ?? 'get',
+        });
+      }
+      if (isAxiosError(error) && error.response?.status === 404) {
+        setPerfil(null);
+        setUsuario(usuarioAtual);
+        return { success: true, perfilNecessario: true };
+      }
+      // Perfil indisponível não invalida uma autenticação já confirmada por /auth/me.
+      setPerfil(null);
+      setUsuario(usuarioAtual);
+      return {
+        success: true,
+        perfilNecessario: false,
+      };
+    }
   }
 
-
-  // ==========================================================
-  // LOGOUT
-  // ==========================================================
-
-  async function sair(): Promise<void> {
-
-    await limparSessao();
-
-    setUsuario(null);
-
-    router.replace('/login');
+  async function sair() {
+    try {
+      await encerrarSessao();
+    } catch {
+      // Clear local credentials even if the server is temporarily unavailable.
+    } finally {
+      await limparSessao();
+      setUsuario(null);
+      setPerfil(null);
+    }
   }
-
-
-  // ==========================================================
-  // PROVIDER
-  // ==========================================================
 
   return (
-
-    <SessaoContext.Provider
-      value={{
-        usuario,
-        carregando,
-        entrar,
-        sair,
-      }}
-    >
-
+    <SessaoContext.Provider value={{ usuario, perfil, carregando, perfilCarregando, entrar, sair, atualizarPerfilSessao: setPerfil, recarregarPerfil }}>
       {children}
-
     </SessaoContext.Provider>
-
   );
 }

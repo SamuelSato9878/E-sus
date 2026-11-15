@@ -30,7 +30,7 @@ const CURVA_ALTURA = 42;
  * apareça atrás da curva. A altura é informada ao navigator, então as telas
  * podem usar `useBottomTabBarHeight()` para não ficar escondidas atrás dela.
  */
-export default function CustomTabBar({ state, navigation }: BottomTabBarProps) {
+export default function CustomTabBar({ state, emitter, navigateToTab }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const informarAltura = use(BottomTabBarHeightCallbackContext);
   const [tamanho, setTamanho] = useState<{ largura: number; altura: number } | null>(null);
@@ -54,13 +54,13 @@ export default function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         const cor = focused ? AZUL_ATIVO : PRETO;
 
         function handlePress() {
-          const event = navigation.emit({
+          const event = emitter.emit({
             type: 'tabPress',
             target: route.key,
             canPreventDefault: true,
           });
           if (!focused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
+            navigateToTab(route.key);
           }
         }
 

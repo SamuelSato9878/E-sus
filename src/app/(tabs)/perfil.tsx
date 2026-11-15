@@ -1,110 +1,20 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { router } from 'expo-router';
-import { useBottomTabBarHeight } from 'expo-router/tabs';
-import { StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import OpcaoPerfil from '../../components/OpcaoPerfil';
+import { router, type Href } from 'expo-router';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSessao } from '../../context/SessaoContext';
-import { nomeDeExibicao } from '../../utils/usuario';
 
-const AZUL_CABECALHO = '#2FBEE8';
-const AZUL_PAINEL = '#B8E8F7';
-const TAMANHO_ICONE = 32;
-
-// "Retorno", "Informações" e "Dados" ainda não têm tela definida;
-// por enquanto esses cards são só visuais.
 export default function Perfil() {
-  const { usuario } = useSessao();
-  const insets = useSafeAreaInsets();
-  const alturaTabBar = useBottomTabBarHeight();
-
-  return (
-    <View style={styles.container}>
-      <View style={[styles.cabecalho, { paddingTop: insets.top + 22 }]}>
-        <Text style={styles.saudacao} numberOfLines={1}>
-          Bem Vindo, {nomeDeExibicao(usuario) ?? '[nome]'}
-        </Text>
-      </View>
-
-      <View style={[styles.painel, { paddingBottom: alturaTabBar }]}>
-        <View style={styles.linha}>
-          <OpcaoPerfil
-            label={'Meus\nAgendamentos'}
-            compacto
-            icone={<Ionicons name="time-outline" size={TAMANHO_ICONE} color="#000000" />}
-            onPress={() => router.navigate('/agendamentos')}
-          />
-          <OpcaoPerfil
-            label="Retorno"
-            icone={
-              <MaterialCommunityIcons
-                name="clipboard-edit-outline"
-                size={TAMANHO_ICONE}
-                color="#000000"
-              />
-            }
-          />
-        </View>
-        <View style={styles.linha}>
-          <OpcaoPerfil
-            label="Informações"
-            icone={
-              <Ionicons name="information-circle-outline" size={TAMANHO_ICONE} color="#000000" />
-            }
-          />
-          <OpcaoPerfil
-            label="Dados"
-            icone={<Ionicons name="person" size={TAMANHO_ICONE} color="#000000" />}
-          />
-        </View>
-      </View>
-
-      {/* Fica por cima do cabeçalho e do painel, como no mockup. */}
-      <View style={[styles.avatar, { top: insets.top + 5 }]}>
-        <Ionicons name="person" size={52} color={AZUL_PAINEL} />
-      </View>
-    </View>
-  );
+  const { usuario, perfil, perfilCarregando } = useSessao();
+  return <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <View style={styles.header}><Text style={styles.heading}>Minha conta</Text><Text style={styles.name}>{usuario?.user_name}</Text><Text style={styles.email}>{usuario?.email}</Text></View>
+    {perfilCarregando ? <ActivityIndicator color="#1CA8DB" /> : perfil ? <View style={styles.card}>
+      <Item label="Telefone" value={perfil.phone || 'Não informado'} /><Item label="CPF" value={perfil.cpf ? `•••.•••.•••-${perfil.cpf.slice(-2)}` : 'Não informado'} /><Item label="Nascimento" value={perfil.birth_date || 'Não informado'} /><Item label="Endereço" value={perfil.address || 'Não informado'} /><Item label="Status do perfil" value={perfil.is_active ? 'Ativo' : 'Inativo'} />
+      {!perfil.is_active && <Text style={styles.profileHint}>Adicione telefone, CPF e data de nascimento para liberar agendamentos. Você pode fazer isso quando quiser.</Text>}
+    </View> : <View style={styles.incomplete}><Text style={styles.incompleteTitle}>Seus dados</Text><Text style={styles.detail}>Nome: {usuario?.user_name}</Text><Text style={styles.detail}>E-mail: {usuario?.email}</Text><Text style={styles.detail}>Você pode adicionar telefone, CPF e data de nascimento quando quiser.</Text></View>}
+    <Pressable style={styles.primary} onPress={() => router.push('/perfil-paciente' as Href)}><Text style={styles.primaryText}>{perfil?.is_active ? 'Editar meus dados' : 'Completar meu perfil'}</Text></Pressable>
+    <Pressable style={styles.secondary} onPress={() => router.navigate('/agendamentos')}><Text style={styles.secondaryText}>Minhas consultas</Text></Pressable>
+  </ScrollView>;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: AZUL_CABECALHO,
-  },
-  cabecalho: {
-    paddingLeft: 18,
-    // Deixa espaço para o avatar à direita.
-    paddingRight: 110,
-    paddingBottom: 18,
-  },
-  saudacao: {
-    fontSize: 19,
-    fontWeight: '700',
-    color: '#EAF8FD',
-  },
-  painel: {
-    flex: 1,
-    backgroundColor: AZUL_PAINEL,
-    borderTopLeftRadius: 56,
-    borderTopRightRadius: 40,
-    paddingTop: 110,
-    paddingHorizontal: 50,
-    gap: 40,
-  },
-  linha: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  avatar: {
-    position: 'absolute',
-    right: 18,
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    backgroundColor: '#49688D',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+function Item({ label, value }: { label: string; value: string }) { return <View style={styles.item}><Text style={styles.label}>{label}</Text><Text style={styles.value}>{value}</Text></View>; }
+
+const styles = StyleSheet.create({ container: { flex: 1, backgroundColor: '#2FBEE8' }, content: { flexGrow: 1, padding: 22, paddingTop: 32, paddingBottom: 120 }, header: { marginBottom: 24 }, heading: { fontSize: 26, fontWeight: '700', color: '#fff' }, name: { fontSize: 20, fontWeight: '700', color: '#fff', marginTop: 20 }, email: { color: '#EAF8FD', marginTop: 4 }, card: { backgroundColor: '#fff', paddingHorizontal: 18, borderRadius: 14 }, item: { paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: '#D4E0E8' }, label: { color: '#8292A5', fontSize: 12 }, value: { color: '#17212B', fontSize: 16, marginTop: 4 }, detail: { color: '#fff', lineHeight: 22, marginTop: 8 }, profileHint: { color: '#536579', lineHeight: 20, paddingVertical: 12 }, incomplete: { backgroundColor: 'rgba(255,255,255,0.14)', padding: 16, borderRadius: 14 }, incompleteTitle: { fontSize: 18, fontWeight: '700', color: '#fff' }, primary: { padding: 15, backgroundColor: '#FABC07', alignItems: 'center', borderRadius: 12, marginTop: 20 }, primaryText: { fontWeight: '700', color: '#17212B' }, secondary: { padding: 15, backgroundColor: '#fff', alignItems: 'center', borderRadius: 12, marginTop: 12 }, secondaryText: { fontWeight: '700', color: '#0866A3' } });
